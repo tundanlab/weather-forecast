@@ -2,8 +2,48 @@ import { useRouter } from 'next/router'
 import cities from 'cities.json';
 import React, { useState } from 'react';
 import App from '../../styles/App.module.css'
+import Image from 'next/image'
 
-const Post = () => {
+export async function getServerSideProps(context) {
+	const city = context.params.city;
+
+	const results = cities.filter((cityFilter) => {
+		return cityFilter.name.startsWith(city);
+		// Use the toLowerCase() method to make it case-insensitive
+	});
+	const size = 1;
+	const items = results.slice(0, size)
+
+    if(items.length == 0){
+        return {
+            notFound: true,
+        };
+    };
+	// 7b26c92417fd3678d52eac12dc870222
+    const url = `https://api.openweathermap.org/data/2.5/onecall?lat=${items[0].lat}&lon=${items[0].lng}&units=metric&appid=${process.env.API_KEY}`;
+    // const url = 'http://localhost:3000/testweather.json';
+	const res = await fetch(url);
+    const data = await res.json();
+
+    if(!data){
+        return {
+            notFound: true,
+        };
+    };
+    const slug = context.params.city;
+
+    return{
+        props: {
+            data,
+			city: city,
+        },
+    }
+}
+
+const Post = ({
+	data,
+	city
+}) => {
 	// the value of the search field 
 	const [name, setName] = useState('');
 
@@ -32,24 +72,10 @@ const Post = () => {
   
 	  setName(keyword);
 	};
-
-  const router = useRouter()
-  const { city } = router.query
-
-  const results = cities.filter((cityFilter) => {
-    return cityFilter.name.startsWith(city);
-    // Use the toLowerCase() method to make it case-insensitive
-  });
-  const size = 1;
-  const items = results.slice(0, size)
-  
-  if (items.length > 0) {
-    getWeather('https://api.openweathermap.org/data/2.5/onecall?lat=' + items[0].lat + '&lon=' + items[0].lng + '&units=metric&appid=7b26c92417fd3678d52eac12dc870222', city = city)
-	// getWeather('/testweather.json', city = city)
-
+	
     return (<div>
 		<div id="weatherTop" class="forecast-container">
-			
+			<h1 class="home-city"><a href="/">Home</a></h1>
 		</div>
 		<div class="forecast-container-city">
 			<div className={App.container}>
@@ -78,11 +104,93 @@ const Post = () => {
 			</div>
 
 		<div id="weatherDay" class="forecast-container">
-				
+			<div class="forecast" style={{width: 200 + 'px'}}>
+				<div class="forecast-content">
+					<h1>Hourly</h1>
+				</div>
+			</div>
+
+			<div class="forecast">
+				<div class="forecast-header">
+					<div class="day">Now</div>
+				</div>
+				<div class="forecast-content">
+					<div class="forecast-icon">
+						<div>
+							<Image src= { "http://openweathermap.org/img/wn/" + data.current?.weather[0]?.icon + "@2x.png"} alt="" width="48" height="48"/>
+						</div>
+					</div>
+					<small>
+						{data.current?.weather[0]?.main}
+					</small>
+					<div class="degree">{ Math.round(data.current?.temp) }<sup>o</sup>C</div>
+				</div>
+			</div>
+			{data.hourly.length > 0 && 
+            data.hourly.slice(1, 10).map((hour, index) => (
+				<div class="forecast">
+				<div class="forecast-header">
+				<div class="day"> {getHour(hour.dt) + ":00"}</div>
+				</div>
+				<div class="forecast-content">
+				<div class="forecast-icon">
+				<div><Image src={"http://openweathermap.org/img/wn/" + hour.weather[0].icon + "@2x.png"} alt="" width="48" height="48"/>
+				<div><small>{ hour.weather[0].main }</small></div></div>
+				</div>
+				<div class="degree">{ Math.round(hour.temp) }<sup>o</sup>C</div>
+				</div>
+				</div>
+          	))}
 		</div>
 
         <div id="weatherWeek" class="forecast-container">
-				
+			<div class="forecast" style={{width: 200 + 'px'}}>
+				<div class="forecast-content">
+					<h1>Daily</h1>
+				</div>
+				</div>
+			<div class="today forecast">
+				<div class="forecast-header">
+					<div class="day" style={{marginLeft:'20px'}}>Today</div>
+					<div class="date" style={{marginRight:'20px'}}>{ getDay(data.current?.dt) + ' ' + getDate(data.current?.dt) }</div>
+				<div class="forecast-content">
+					<div>
+						<div class="location">{ city }</div>
+						<div>
+							<div class="degree">
+								<div class="num">{ Math.round(data.current?.temp) }<sup>o</sup>C</div>
+								<div class="forecast-icon">
+									<div><Image src= { "http://openweathermap.org/img/wn/" + data.current?.weather[0]?.icon + "@2x.png"} alt="" width="48" height="48"/>
+									<div> {data.current?.weather[0].main }</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+						<span><Image src="/images/icon-humidity.png" alt="" width="12" height="12"/> { data.current?.humidity + " %"}</span>
+						<span><Image src="/images/icon-wind.png" alt="" width="12" height="12"/>{ (Math.round(data.current?.wind_speed * 3.6 * 10) / 10)} km/h</span>
+						<span><Image src="/images/icon-visibility.png" alt="" width="12" height="12"/> {Math.round(data.current?.visibility/1000) } km</span>
+				</div>
+
+				</div>
+			</div>
+
+			{data.daily.length > 0 && 
+            data.daily.slice(1, 6).map((day, index) => (
+				<div class="forecast">
+				<div class="forecast-header">
+				<div class="day"> {getDay(day.dt)}</div>
+				</div>
+				<div class="forecast-content">
+				<div class="forecast-icon">
+				<div><Image src={"http://openweathermap.org/img/wn/" + day.weather[0].icon + "@2x.png"} alt="" width="48" height="48"/>
+				<div><small>{ day.weather[0].main }</small></div></div>
+				</div>
+				<div class="degree">{ Math.round(day.temp.day) }<sup>o</sup>C</div>
+				<small> {Math.round(day.temp.min)}  <sup>o</sup>C - {Math.round(day.temp.max)} <sup>o</sup>C</small>
+				</div>
+				</div>
+          	))}
 		</div>
         <script src="/js/jquery-1.11.1.min.js"></script>
 		<script src="/js/plugins.js"></script>
@@ -91,111 +199,9 @@ const Post = () => {
 		<link href="/fonts/font-awesome.min.css" rel="stylesheet" type="text/css"/>
 		<link rel="stylesheet" href="/style.css"></link>
     </div>)
-  } else {
-    return (<p style={{textalign: "center"}}>No results found! <a href="/" style={{color: '#1E90FF'}}>Back to Home page</a></p>)
-  }
-}
-
-function getWeather(url = '', city = '') {
-    fetch(url)
-    .then((response) => response.json())
-    .then((data) => {
-  	// console.log(data);
-
-	  	document.getElementById("weatherTop").innerHTML = "";
-		var html = '<h1 style="margin-left:20px;margin-top:20px"><a href="/">Home</a></h1>';
-		document.getElementById("weatherTop").insertAdjacentHTML('afterbegin',html);
-
-		document.getElementById("weatherDay").innerHTML = "";
-		// Now
-		var html = '<div class="forecast" style="width:200px">';
-		html += '<div class="forecast-content">';
-		html += '<h1>Hourly</h1>';
-		html += '</div>';
-		html += '</div>';
-
-		html += '<div class="forecast">';
-		html += '<div class="forecast-header">';
-		html += '<div class="day">' + 'Now' + '</div>';
-		html += '</div>';
-		html += '<div class="forecast-content">';
-		html += '<div class="forecast-icon">';
-		html += '<div><img src="http://openweathermap.org/img/wn/' + data.current?.weather[0]?.icon + '@2x.png" alt="" width=48>';
-		html += '<div><small>' + data.current?.weather[0]?.main +'</small></div></div>';
-		html += '</div>';
-		html += '<div class="degree">'+ Math.round(data.current?.temp) +'<sup>o</sup>C</div>';
-		html += '</div>';
-		html += '</div>';
-		// Next hours
-		data.hourly?.forEach(function(hour,index){
-			if (index > 0 && index < 10 ){
-				html += '<div class="forecast">';
-				html += '<div class="forecast-header">';
-				html += '<div class="day">' + getHour(hour.dt) + ':00</div>';
-				html += '</div>';
-				html += '<div class="forecast-content">';
-				html += '<div class="forecast-icon">';
-				html += '<div><img src="http://openweathermap.org/img/wn/' + hour.weather[0].icon + '@2x.png" alt="" width=48>';
-				html += '<div><small>' + hour.weather[0].main +'</small></div></div>';
-				html += '</div>';
-				html += '<div class="degree">'+ Math.round(hour.temp) +'<sup>o</sup>C</div>';
-				// html += '<small>' + Math.round(day.temp.min) + '<sup>o</sup>C - ' + Math.round(day.temp.max) +'<sup>o</sup>C</small>';
-				html += '</div>';
-				html += '</div>';
-			}
-		})
-		document.getElementById("weatherDay").insertAdjacentHTML('afterbegin',html);
-
-		//WeatherWeek
-		document.getElementById("weatherWeek").innerHTML = "";
-		// document.getElementById("weatherWeek").style = "width:200px";
-		// Today
-		var html = '<div class="forecast" style="width:200px">';
-		html += '<div class="forecast-content">';
-		html += '<h1>Daily</h1>';
-		html += '</div>';
-		html += '</div>';
-		html += '<div class="today forecast">';
-		html +=	'<div class="forecast-header">';
-		html += '<div class="day" style="margin-left:20px;">' + 'Today' + '</div>';
-		html += '<div class="date" style="margin-right:20px;">' + getDay(data.current?.dt) + ' ' + getDate(data.current?.dt) + '</div>';
-		html += '<div class="forecast-content">';
-		html += '<div class="location">' + city + '</div>';
-		html += '<div class="degree">';
-		html += '<div class="num">' + Math.round(data.current?.temp) + '<sup>o</sup>C</div>';
-		html += '<div class="forecast-icon">';
-		html += '<div><img src="http://openweathermap.org/img/wn/' + data.current?.weather[0].icon + '@2x.png" alt="" width=80>';
-		html += '<div>' + data.current?.weather[0].main + '</div></div>';
-		html += '</div>';
-		html += '</div>';
-		html += '<span><img src="/images/icon-humidity.png" alt="">' + data.current?.humidity + ' %</span>';
-		html += '<span><img src="/images/icon-wind.png" alt="">' + (Math.round(data.current?.wind_speed * 3.6 * 10) / 10) + ' km/h</span>';
-		html += '<span><img src="/images/icon-visibility.png" alt="">' + Math.round(data.current?.visibility/1000) + ' km</span>';
-		html += '</div>';
-		html += '</div>';
-		html += '</div>';
-		html += '</div>';
-		html += '</div>';
-		// All week
-		data.daily?.forEach(function(day,index){
-			if (index > 0 && index < 7 ){
-				html += '<div class="forecast">';
-				html += '<div class="forecast-header">';
-				html += '<div class="day">' + getDay(day.dt) + '</div>';
-				html += '</div>';
-				html += '<div class="forecast-content">';
-				html += '<div class="forecast-icon">';
-				html += '<div><img src="http://openweathermap.org/img/wn/' + day.weather[0].icon + '@2x.png" alt="" width=48>';
-				html += '<div><small>' + day.weather[0].main +'</small></div></div>';
-				html += '</div>';
-				html += '<div class="degree">'+ Math.round(day.temp.day) +'<sup>o</sup>C</div>';
-				html += '<small>' + Math.round(day.temp.min) + '<sup>o</sup>C - ' + Math.round(day.temp.max) +'<sup>o</sup>C</small>';
-				html += '</div>';
-				html += '</div>';
-			}
-		})
-		document.getElementById("weatherWeek").insertAdjacentHTML('afterbegin',html);
-    });
+//   } else {
+//     return (<p style={{textalign: "center"}}>No results found! <a href="/" style={{color: '#1E90FF'}}>Back to Home page</a></p>)
+//   }
 }
 
 function getDay(dt) {
